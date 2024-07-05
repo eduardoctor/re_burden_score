@@ -18,7 +18,7 @@ def top_percentile(df, columns_to_check, covariates, id_column, percentile=0.8):
             threshold = df[col].quantile(percentile)
             result_col = (df[col] >= threshold).astype(int)
         else:
-            result_col = pd.Series([0] * len(df), index=df.index)  # Set to 0 if median <= 0
+            result_col = pd.Series([0] * len(df), index=df.index)
         result_cols.append(result_col)
     
     percentile_df = pd.concat([percentile_df] + result_cols, axis=1)
@@ -39,7 +39,7 @@ def plot_partial_effects(cph, df_score):#, p_value_score):
                                         values=[df_score['scaled_score'].mean()],
                                         ax=ax,
                                         plot_baseline=False)
-    plt.title(f'Partial Effects of TE Score on Survival \n(p-value for score') # = {p_value_score:.2e})')
+    plt.title(f'Partial Effects of TE Score on Survival')
     plt.xlabel('Time (months)')
     plt.ylabel('Survival Probability')
     plt.grid(True)
