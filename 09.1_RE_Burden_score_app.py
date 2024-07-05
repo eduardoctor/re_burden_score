@@ -135,7 +135,7 @@ def main():
         percentile = st.sidebar.slider('Select Percentile Threshold', min_value=0.1, max_value=0.9, value=0.8, step=0.01)
         
         num_quantiles = st.sidebar.number_input('Select Number for Score Quantiles', min_value=2, max_value=10, value=5, step=1)
-        covariates_selected = st.sidebar.multiselect('Extra model covariates', columns_to_exclude)
+        covariates_selected = st.sidebar.multiselect('Extra adjusting covariates', columns_to_exclude)
         
         if st.sidebar.button('Run Analysis'):
             if re_family != 'All':
