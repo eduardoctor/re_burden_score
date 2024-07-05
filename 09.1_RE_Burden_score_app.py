@@ -79,9 +79,10 @@ def subset_by_family(df, gene_info, selected_family, id_column):
     list1 = list(gene_info[gene_info['re_family'] == selected_family]['re'])
     list2 = list(df.columns)
     overlap = list(set(list1) & set(list2))
+    covars = list(set(list2) - set(list1))
     family_df = df[overlap]
     family_df["IID"] = df[id_column]
-    family_df = pd.merge(family_df, df[['IID','survival_months','deceased','age','sex']], how='inner', on=id_column)
+    family_df = pd.merge(family_df, df[covars], how='inner', on=id_column)
     return family_df
 
 # Function to display the Streamlit app
@@ -96,7 +97,7 @@ def main():
     * The RE count file and the RE info file should be in .csv format
     * At the **Non-RE columns** anything that is not an RE (including, ID, age, sex, etc)
     * The file should have a column named `survival_months` and `deceased`. 
-        * The column `deceased` should be a binary column `[0,1]` to denote subjects who are deceased 
+        * In general all binary columns should be numeric (continuous or categorical). E.g. The column `deceased` should be a binary column `[0,1]` similar with sex it should be [0,1]
     
     ### Parameters
     * Under the *Select RE family* slect one family or select all to create a model and plots without subsetting by family
@@ -134,6 +135,7 @@ def main():
         percentile = st.sidebar.slider('Select Percentile Threshold', min_value=0.1, max_value=0.9, value=0.8, step=0.01)
         
         num_quantiles = st.sidebar.number_input('Select Number for Score Quantiles', min_value=2, max_value=10, value=5, step=1)
+        covariates_selected = st.sidebar.multiselect('Model covariates', columns_to_exclude)
         
         if st.sidebar.button('Run Analysis'):
             if re_family != 'All':
@@ -142,11 +144,10 @@ def main():
             columns_to_check = list(set(re_df.columns) - set(columns_to_exclude + [id_column]))
             
             df_score = top_percentile(df=re_df, columns_to_check=columns_to_check, covariates=columns_to_exclude, id_column=id_column, percentile=percentile)
-            df_score = pd.get_dummies(df_score, columns=['sex'], drop_first=True)
             df_score['scaled_score'] = rescale_to_one_sd(df_score, 'score')
             
             cph = CoxPHFitter()
-            cph.fit(df_score, duration_col='survival_months', event_col='deceased', formula='scaled_score + sex_male + age')
+            cph.fit(df_score, duration_col='survival_months', event_col='deceased', formula=' + '.join(['scaled_score'] + covariates_selected))
                         
             #p_value_score = cph.summary.loc['scaled_score', 'p']
             
