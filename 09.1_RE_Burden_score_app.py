@@ -131,7 +131,7 @@ def main():
         
         re_family = st.sidebar.selectbox('Select an RE family', ['All'] + list(rep_info['re_family'].unique()))
         
-        percentile = st.sidebar.slider('Select Percentile', min_value=0.1, max_value=0.9, value=0.8, step=0.01)
+        percentile = st.sidebar.slider('Select Percentile Threshold', min_value=0.1, max_value=0.9, value=0.8, step=0.01)
         
         num_quantiles = st.sidebar.number_input('Select Number for Score Quantiles', min_value=2, max_value=10, value=5, step=1)
         
