@@ -18,7 +18,7 @@ def top_percentile(df, columns_to_check, covariates, id_column, percentile=0.8):
             threshold = df[col].quantile(percentile)
             result_col = (df[col] >= threshold).astype(int)
         else:
-            result_col = pd.Series([0] * len(df), index=df.index)
+            result_col = pd.Series([0] * len(df), index=df.index)  # Set to 0 if median <= 0
         result_cols.append(result_col)
     
     percentile_df = pd.concat([percentile_df] + result_cols, axis=1)
@@ -30,16 +30,16 @@ def top_percentile(df, columns_to_check, covariates, id_column, percentile=0.8):
 # Function to standardize the score
 def rescale_to_one_sd(df, column_name):
     std_dev = df[column_name].std()
-    df['scaled_score'] = (df[column_name]) / std_dev
+    df['scaled_score'] = df[column_name] / std_dev
     return df['scaled_score']
 
-def plot_partial_effects(cph, df_score):#, p_value_score):
+def plot_partial_effects(cph, df_score):  #, p_value_score):
     fig, ax = plt.subplots(figsize=(12, 8))
     cph.plot_partial_effects_on_outcome(covariates=['scaled_score'],
                                         values=[df_score['scaled_score'].mean()],
                                         ax=ax,
                                         plot_baseline=False)
-    plt.title(f'Partial Effects of TE Score on Survival')
+    plt.title('Partial Effects of TE Score on Survival')  # \n(p-value for score = {p_value_score:.2e})')
     plt.xlabel('Time (months)')
     plt.ylabel('Survival Probability')
     plt.grid(True)
@@ -69,25 +69,28 @@ def quantile_plots(df, score_col, survival_time_col, vital_status_col, num_quant
         kmf.fit(durations=grouped_df[survival_time_col], event_observed=grouped_df[vital_status_col], label=name)
         kmf.plot_survival_function(show_censors=True, ci_show=False)  # ci_show=False to hide confidence intervals
     
-    plt.title(f'Kaplan-Meier Curve by Score Quantiles')
+    plt.title('Kaplan-Meier Curve by Score Quantiles')
     plt.xlabel('Time')
     plt.ylabel('Survival Probability')
     plt.legend(title='Quantiles')
     st.pyplot(plt)
 
-def subset_by_family(df, gene_info, selected_family, id_column):
+def subset_by_family(df, gene_info, selected_family, id_column, covars):
+    
     list1 = list(gene_info[gene_info['re_family'] == selected_family]['re'])
     list2 = list(df.columns)
     overlap = list(set(list1) & set(list2))
-    covars = list(set(list2) - set(list1))
+    covars = list(set(covars) - set(id_column))
     family_df = df[overlap]
-    family_df["IID"] = df[id_column]
+    family_df[id_column] = df[id_column]
     family_df = pd.merge(family_df, df[covars], how='inner', on=id_column)
+    
+    st.write(f"Family DF (Subsetted data): {family_df.head()}")
+    
     return family_df
 
-# Function to display the Streamlit app
 def main():
-    st.title('TE Burden score Analysis')
+    st.title('TE Burden Score Analysis')
     
     # Add instructions
     st.markdown("""
@@ -95,24 +98,22 @@ def main():
     
     ### File formatting:
     * The RE count file and the RE info file should be in .csv format
-    * At the **Non-RE columns** anything that is not an RE (including, ID, age, sex, etc)
+    * At the **Non-RE columns** specify anything that is not an RE (including ID, age, sex, etc)
     * The file should have a column named `survival_months` and `deceased`. 
-        * In general all binary columns should be numeric (continuous or categorical). E.g. The column `deceased` should be a binary column `[0,1]` similar with sex it should be [0,1]
+        * The column `deceased` should be a binary column `[0,1]` to denote subjects who are deceased 
     
     ### Parameters
-    * Under the *Select RE family* slect one family or select all to create a model and plots without subsetting by family
-    * The *Select percentile* is the threshold at which the program will classify subjects as having `0s` or `1s` and that will be used for the score.
-    * 'Select Number for Score Quantiles is the number of quantiles that the score will be sectioned into and the Quantiles plot will be created based on this
+    * Under the *Select RE family*, select one family or select all to create a model and plots without subsetting by family
+    * The *Select Percentile Threshold* is the threshold at which the program will classify subjects as having `0s` or `1s` that will be used for the score.
+    * The *Select Number for Score Quantiles* is the number of quantiles that the score will be sectioned into, and the Quantiles plot will be created based on this.
     
-    **Notes:**  \n
-    * *The model will adjust for age and sex and the coefficients will be displayed under the plot*
-    * *The program will display a preview of the data that is being used for the quantile plots*
-    
+    **Notes:**  
+    * *The model will adjust for age and sex, and the coefficients will be displayed under the plot.*
+    * *The program will display a preview of the data that is being used for the quantile plots.*
     """)
 
-    # Upload file 
-    
-    st.sidebar.subheader("Upload files")
+    # Upload files 
+    st.sidebar.subheader("Upload Files")
     uploaded_file = st.sidebar.file_uploader("Upload your Count file", type=['csv'])
     rep_info_file = st.sidebar.file_uploader("Upload your RE info file", type=['csv'])
     
@@ -120,26 +121,27 @@ def main():
         re_df = pd.read_csv(uploaded_file)
         rep_info = pd.read_csv(rep_info_file)
         
-        
-        
         id_column = st.sidebar.selectbox('Select ID Column', re_df.columns)
         
-        st.sidebar.subheader('Select all the Non-RE Columns')
+        st.sidebar.subheader('Select All the Non-RE Columns')
         
-        columns_to_exclude = st.sidebar.multiselect('Non-RE variables', re_df.columns)
+        columns_to_exclude = st.sidebar.multiselect('Non-RE Variables', re_df.columns)
+        
+        
         
         st.sidebar.subheader('Analysis Parameters')
         
-        re_family = st.sidebar.selectbox('Select an RE family', ['All'] + list(rep_info['re_family'].unique()))
+        re_family = st.sidebar.selectbox('Select an RE Family', ['All'] + list(rep_info['re_family'].unique()))
         
         percentile = st.sidebar.slider('Select Percentile Threshold', min_value=0.1, max_value=0.9, value=0.8, step=0.01)
         
         num_quantiles = st.sidebar.number_input('Select Number for Score Quantiles', min_value=2, max_value=10, value=5, step=1)
-        covariates_selected = st.sidebar.multiselect('Extra adjusting covariates', columns_to_exclude)
+        covariates_selected = st.sidebar.multiselect('Model Covariates', columns_to_exclude)
+       
         
         if st.sidebar.button('Run Analysis'):
             if re_family != 'All':
-                re_df = subset_by_family(re_df, rep_info, re_family, id_column)
+                re_df = subset_by_family(re_df, rep_info, re_family, id_column, columns_to_exclude)
             
             columns_to_check = list(set(re_df.columns) - set(columns_to_exclude + [id_column]))
             
@@ -149,12 +151,9 @@ def main():
             cph = CoxPHFitter()
             cph.fit(df_score, duration_col='survival_months', event_col='deceased', formula=' + '.join(['scaled_score'] + covariates_selected))
                         
-            #p_value_score = cph.summary.loc['scaled_score', 'p']
-            
             # DISPLAY OUTPUTS
-            st.subheader(f'Partial Effects of TE Score on Survival for family {re_family}')
-           #st.write(f'(p-value for score'))# = {p_value_score:.2e})')
-            st.pyplot(plot_partial_effects(cph, df_score)) #, p_value_score))  
+            st.subheader(f'Partial Effects of TE Score on Survival for Family {re_family}')
+            st.pyplot(plot_partial_effects(cph, df_score))  
             
             st.subheader('Cox Proportional Hazards Model')
             st.write(cph.summary) 
@@ -165,7 +164,7 @@ def main():
                 quantile_plots(df_score, 'scaled_score', 'survival_months', 'deceased', num_quantiles)
             
             # Data Preview
-            st.subheader(f"Data Preview for {re_family} family")
+            st.subheader(f"Data Preview for {re_family} Family")
             st.write(df_score.head(20))
 
 if __name__ == '__main__':
