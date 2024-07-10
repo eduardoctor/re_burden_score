@@ -85,8 +85,6 @@ def subset_by_family(df, gene_info, selected_family, id_column, covars):
     family_df[id_column] = df[id_column]
     family_df = pd.merge(family_df, df[covars], how='inner', on=id_column)
     
-    st.write(f"Family DF (Subsetted data): {family_df.head()}")
-    
     return family_df
 
 def main():
